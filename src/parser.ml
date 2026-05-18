@@ -11,14 +11,32 @@ let expect expected tokens =
   | [] ->
       raise (ParseError "Unexpected end of input")
 
-let parse_exp tokens =
+(* Parses a return statement according to: return <exp>; *)
+let rec parse_exp tokens =
   match tokens with
   | IntConst n :: rest ->
       (Constant n, rest)
-  | _ ->
-      raise (ParseError "Expected integer constant")
 
-(*Parses tokens one by one*)
+  | Hyphen :: rest ->
+      let inner, rest = parse_exp rest in
+      (Unary (Negate, inner), rest)
+
+  | Tilde :: rest ->
+      let inner, rest = parse_exp rest in
+      (Unary (Complement, inner), rest)
+
+  | LParen :: rest ->
+      let inner, rest = parse_exp rest in
+      let rest = expect RParen rest in
+      (inner, rest)
+
+  | Decrement :: _ ->
+      raise (ParseError "Decrement operator is not supported")
+
+  | _ ->
+      raise (ParseError "Malformed expression")
+
+
 let parse_statement tokens =
   let tokens = expect ReturnKw tokens in
   let expr, tokens = parse_exp tokens in

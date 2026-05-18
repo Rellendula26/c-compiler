@@ -13,3 +13,8 @@ and statement =
 (* Represents an expression. *)
 and exp =
   | Constant of int
+  | Unary of unary_operator * exp
+
+and unary_operator =
+  | Complement
+  | Negate

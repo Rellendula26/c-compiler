@@ -1,16 +1,32 @@
 open Asm
 
 let emit_reg = function
-  | W0 -> "w0"
+  | AX -> "%eax"
+  | R10 -> "%r10d"
 
 let emit_operand = function
-  | Imm n -> "#" ^ string_of_int n
+  | Imm n -> "$" ^ string_of_int n
   | Reg r -> emit_reg r
+  | Pseudo name -> name
+  | Stack offset -> string_of_int offset ^ "(%rbp)"
+
+let emit_unop = function
+  | Neg -> "negl"
+  | Not -> "notl"
 
 let emit_instruction = function
   | Mov (src, dst) ->
-      "    mov " ^ emit_operand dst ^ ", " ^ emit_operand src
+      "    movl " ^ emit_operand src ^ ", " ^ emit_operand dst
+
+  | Unary (op, operand) ->
+      "    " ^ emit_unop op ^ " " ^ emit_operand operand
+
+  | AllocateStack bytes ->
+      "    subq $" ^ string_of_int bytes ^ ", %rsp"
+
   | Ret ->
+      "    movq %rbp, %rsp\n" ^
+      "    popq %rbp\n" ^
       "    ret"
 
 let emit_function = function
@@ -23,6 +39,8 @@ let emit_function = function
       in
       ".globl " ^ label ^ "\n" ^
       label ^ ":\n" ^
+      "    pushq %rbp\n" ^
+      "    movq %rsp, %rbp\n" ^
       body ^ "\n"
 
 let emit_program = function

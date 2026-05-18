@@ -1,6 +1,6 @@
 open Printf
 
-(*We need tokens for all of these different instances*)
+(* Token definitions recognized by the lexer. *)
 type token =
   | IntKw
   | VoidKw
@@ -12,6 +12,11 @@ type token =
   | LBrace
   | RBrace
   | Semicolon
+
+  (* Unary operator tokens. *)
+  | Tilde        (* ~  bitwise complement *)
+  | Hyphen       (* -  unary negation for now; later also subtraction *)
+  | Decrement    (* -- recognized so parser can reject unsupported decrement *)
 
 (* Raised when the lexer sees a character sequence it cannot tokenize. *)
 exception LexError of string
@@ -41,7 +46,7 @@ let keyword_of_ident = function
 let lex input =
   let len = String.length input in
 
-    let rec lex_at i acc =
+  let rec lex_at i acc =
     if i >= len then
       List.rev acc
     else
@@ -54,6 +59,18 @@ let lex input =
       | '{' -> lex_at (i + 1) (LBrace :: acc)
       | '}' -> lex_at (i + 1) (RBrace :: acc)
       | ';' -> lex_at (i + 1) (Semicolon :: acc)
+
+      (* NEW: recognize bitwise complement. *)
+      | '~' ->
+          lex_at (i + 1) (Tilde :: acc)
+
+      (* NEW: longest-match rule.
+         If we see "--", produce Decrement, not two Hyphen tokens. *)
+      | '-' ->
+          if i + 1 < len && input.[i + 1] = '-' then
+            lex_at (i + 2) (Decrement :: acc)
+          else
+            lex_at (i + 1) (Hyphen :: acc)
 
       | c when is_letter c ->
           let j = ref (i + 1) in
