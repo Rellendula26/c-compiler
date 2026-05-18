@@ -1,0 +1,9 @@
+*.cmo
+*.cmi
+*.o
+*.s
+*.i
+*.dSYM/
+mycc
+out.s
+return_42
