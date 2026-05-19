@@ -7,6 +7,7 @@ and function_definition =
 and instruction =
   | Return of value
   | Unary of unary_operator * value * value
+  | Binary of binary_operator * value * value * value
 
 and value =
   | Constant of int
@@ -15,3 +16,10 @@ and value =
 and unary_operator =
   | Complement
   | Negate
+
+and binary_operator =
+  | Add
+  | Subtract
+  | Multiply
+  | Divide
+  | Remainder

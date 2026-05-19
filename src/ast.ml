@@ -10,11 +10,21 @@ and function_definition =
 and statement =
   | Return of exp
 
-(* Represents an expression. *)
-and exp =
-  | Constant of int
-  | Unary of unary_operator * exp
-
+(* Unary operators *)
 and unary_operator =
   | Complement
   | Negate
+
+(* NEW: binary operators *)
+and binary_operator =
+  | Add
+  | Subtract
+  | Multiply
+  | Divide
+  | Remainder
+
+(* Expressions *)
+and exp =
+  | Constant of int
+  | Unary of unary_operator * exp
+  | Binary of binary_operator * exp * exp

@@ -1,27 +1,27 @@
 open Printf
 
-(* Token definitions recognized by the lexer. *)
 type token =
   | IntKw
   | VoidKw
   | ReturnKw
   | Ident of string
   | IntConst of int
+
+  | Minus
+  | Tilde
+  | Plus
+  | Star
+  | Slash
+  | Percent
+
   | LParen
   | RParen
   | LBrace
   | RBrace
   | Semicolon
 
-  (* Unary operator tokens. *)
-  | Tilde        (* ~  bitwise complement *)
-  | Hyphen       (* -  unary negation for now; later also subtraction *)
-  | Decrement    (* -- recognized so parser can reject unsupported decrement *)
-
-(* Raised when the lexer sees a character sequence it cannot tokenize. *)
 exception LexError of string
 
-(* Character classification helpers used while scanning the source text. *)
 let is_whitespace = function
   | ' ' | '\t' | '\n' | '\r' -> true
   | _ -> false
@@ -54,23 +54,38 @@ let lex input =
       | c when is_whitespace c ->
           lex_at (i + 1) acc
 
-      | '(' -> lex_at (i + 1) (LParen :: acc)
-      | ')' -> lex_at (i + 1) (RParen :: acc)
-      | '{' -> lex_at (i + 1) (LBrace :: acc)
-      | '}' -> lex_at (i + 1) (RBrace :: acc)
-      | ';' -> lex_at (i + 1) (Semicolon :: acc)
+      | '(' ->
+          lex_at (i + 1) (LParen :: acc)
 
-      (* NEW: recognize bitwise complement. *)
+      | ')' ->
+          lex_at (i + 1) (RParen :: acc)
+
+      | '{' ->
+          lex_at (i + 1) (LBrace :: acc)
+
+      | '}' ->
+          lex_at (i + 1) (RBrace :: acc)
+
+      | ';' ->
+          lex_at (i + 1) (Semicolon :: acc)
+
       | '~' ->
           lex_at (i + 1) (Tilde :: acc)
 
-      (* NEW: longest-match rule.
-         If we see "--", produce Decrement, not two Hyphen tokens. *)
       | '-' ->
-          if i + 1 < len && input.[i + 1] = '-' then
-            lex_at (i + 2) (Decrement :: acc)
-          else
-            lex_at (i + 1) (Hyphen :: acc)
+          lex_at (i + 1) (Minus :: acc)
+
+      | '+' ->
+          lex_at (i + 1) (Plus :: acc)
+
+      | '*' ->
+          lex_at (i + 1) (Star :: acc)
+
+      | '/' ->
+          lex_at (i + 1) (Slash :: acc)
+
+      | '%' ->
+          lex_at (i + 1) (Percent :: acc)
 
       | c when is_letter c ->
           let j = ref (i + 1) in

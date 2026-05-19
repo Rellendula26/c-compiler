@@ -20,6 +20,45 @@ let gen_instruction = function
       let dst = convert_val dst in
       [Asm.Mov (src, dst); Asm.Unary (convert_unop op, dst)]
 
+  | Tacky.Binary (op, src1, src2, dst) ->
+      let src1 = convert_val src1 in
+      let src2 = convert_val src2 in
+      let dst = convert_val dst in
+      match op with
+      | Tacky.Add ->
+          [
+            Asm.Mov (src1, dst);
+            Asm.Binary (Asm.Add, src2, dst);
+          ]
+
+      | Tacky.Subtract ->
+          [
+            Asm.Mov (src1, dst);
+            Asm.Binary (Asm.Sub, src2, dst);
+          ]
+
+      | Tacky.Multiply ->
+          [
+            Asm.Mov (src1, dst);
+            Asm.Binary (Asm.Mult, src2, dst);
+          ]
+
+      | Tacky.Divide ->
+          [
+            Asm.Mov (src1, Asm.Reg Asm.AX);
+            Asm.Cdq;
+            Asm.Idiv src2;
+            Asm.Mov (Asm.Reg Asm.AX, dst);
+          ]
+
+      | Tacky.Remainder ->
+          [
+            Asm.Mov (src1, Asm.Reg Asm.AX);
+            Asm.Cdq;
+            Asm.Idiv src2;
+            Asm.Mov (Asm.Reg Asm.DX, dst);
+          ]
+
 let replace_operand operand state =
   let stack_map, next_offset = state in
   match operand with
@@ -45,6 +84,18 @@ let replace_instruction instruction state =
       let operand, state = replace_operand operand state in
       (Unary (op, operand), state)
 
+  | Binary (op, src, dst) ->
+      let src, state = replace_operand src state in
+      let dst, state = replace_operand dst state in
+      (Binary (op, src, dst), state)
+
+  | Idiv operand ->
+      let operand, state = replace_operand operand state in
+      (Idiv operand, state)
+
+  | Cdq ->
+      (Cdq, state)
+
   | Ret ->
       (Ret, state)
 
@@ -68,6 +119,18 @@ let fix_instruction = function
       [
         Mov (Stack src, Reg R10);
         Mov (Reg R10, Stack dst);
+      ]
+
+  | Binary (op, Stack src, Stack dst) ->
+      [
+        Mov (Stack src, Reg R10);
+        Binary (op, Reg R10, Stack dst);
+      ]
+
+  | Idiv (Imm n) ->
+      [
+        Mov (Imm n, Reg R10);
+        Idiv (Reg R10);
       ]
 
   | instr ->
