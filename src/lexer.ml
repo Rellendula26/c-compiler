@@ -14,6 +14,16 @@ type token =
   | Slash
   | Percent
 
+  | Bang
+  | And
+  | Or
+  | EqualEqual
+  | BangEqual
+  | Less
+  | LessEqual
+  | Greater
+  | GreaterEqual
+
   | LParen
   | RParen
   | LBrace
@@ -54,38 +64,56 @@ let lex input =
       | c when is_whitespace c ->
           lex_at (i + 1) acc
 
-      | '(' ->
-          lex_at (i + 1) (LParen :: acc)
-
-      | ')' ->
-          lex_at (i + 1) (RParen :: acc)
-
-      | '{' ->
-          lex_at (i + 1) (LBrace :: acc)
-
-      | '}' ->
-          lex_at (i + 1) (RBrace :: acc)
-
-      | ';' ->
-          lex_at (i + 1) (Semicolon :: acc)
+      | '(' -> lex_at (i + 1) (LParen :: acc)
+      | ')' -> lex_at (i + 1) (RParen :: acc)
+      | '{' -> lex_at (i + 1) (LBrace :: acc)
+      | '}' -> lex_at (i + 1) (RBrace :: acc)
+      | ';' -> lex_at (i + 1) (Semicolon :: acc)
 
       | '~' ->
           lex_at (i + 1) (Tilde :: acc)
 
-      | '-' ->
-          lex_at (i + 1) (Minus :: acc)
+      | '!' ->
+          if i + 1 < len && input.[i + 1] = '=' then
+            lex_at (i + 2) (BangEqual :: acc)
+          else
+            lex_at (i + 1) (Bang :: acc)
 
-      | '+' ->
-          lex_at (i + 1) (Plus :: acc)
+      | '&' ->
+          if i + 1 < len && input.[i + 1] = '&' then
+            lex_at (i + 2) (And :: acc)
+          else
+            raise (LexError "Unexpected character: &")
 
-      | '*' ->
-          lex_at (i + 1) (Star :: acc)
+      | '|' ->
+          if i + 1 < len && input.[i + 1] = '|' then
+            lex_at (i + 2) (Or :: acc)
+          else
+            raise (LexError "Unexpected character: |")
 
-      | '/' ->
-          lex_at (i + 1) (Slash :: acc)
+      | '=' ->
+          if i + 1 < len && input.[i + 1] = '=' then
+            lex_at (i + 2) (EqualEqual :: acc)
+          else
+            raise (LexError "Unexpected character: =")
 
-      | '%' ->
-          lex_at (i + 1) (Percent :: acc)
+      | '<' ->
+          if i + 1 < len && input.[i + 1] = '=' then
+            lex_at (i + 2) (LessEqual :: acc)
+          else
+            lex_at (i + 1) (Less :: acc)
+
+      | '>' ->
+          if i + 1 < len && input.[i + 1] = '=' then
+            lex_at (i + 2) (GreaterEqual :: acc)
+          else
+            lex_at (i + 1) (Greater :: acc)
+
+      | '-' -> lex_at (i + 1) (Minus :: acc)
+      | '+' -> lex_at (i + 1) (Plus :: acc)
+      | '*' -> lex_at (i + 1) (Star :: acc)
+      | '/' -> lex_at (i + 1) (Slash :: acc)
+      | '%' -> lex_at (i + 1) (Percent :: acc)
 
       | c when is_letter c ->
           let j = ref (i + 1) in

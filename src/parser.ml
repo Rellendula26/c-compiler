@@ -9,12 +9,19 @@ let expect expected tokens =
   | _ -> raise (ParseError "Unexpected token")
 
 let precedence = function
-  | Plus | Minus -> 45
   | Star | Slash | Percent -> 50
+  | Plus | Minus -> 45
+  | Less | LessEqual | Greater | GreaterEqual -> 35
+  | EqualEqual | BangEqual -> 30
+  | And -> 10
+  | Or -> 5
   | _ -> raise (ParseError "Not a binary operator")
 
 let is_binary_op = function
-  | Plus | Minus | Star | Slash | Percent -> true
+  | Plus | Minus | Star | Slash | Percent
+  | And | Or
+  | EqualEqual | BangEqual
+  | Less | LessEqual | Greater | GreaterEqual -> true
   | _ -> false
 
 let binop_of_token = function
@@ -23,9 +30,16 @@ let binop_of_token = function
   | Star -> Multiply
   | Slash -> Divide
   | Percent -> Remainder
+  | And -> And
+  | Or -> Or
+  | EqualEqual -> Equal
+  | BangEqual -> NotEqual
+  | Less -> LessThan
+  | LessEqual -> LessOrEqual
+  | Greater -> GreaterThan
+  | GreaterEqual -> GreaterOrEqual
   | _ -> raise (ParseError "Expected binary operator")
 
-(* Parse constants, unary expressions, and parenthesized expressions *)
 let rec parse_factor tokens =
   match tokens with
   | IntConst n :: rest ->
@@ -39,6 +53,10 @@ let rec parse_factor tokens =
       let inner, rest = parse_factor rest in
       (Unary (Complement, inner), rest)
 
+  | Bang :: rest ->
+      let inner, rest = parse_factor rest in
+      (Unary (Not, inner), rest)
+
   | LParen :: rest ->
       let inner, rest = parse_exp rest 0 in
       let rest = expect RParen rest in
@@ -47,16 +65,14 @@ let rec parse_factor tokens =
   | _ ->
       raise (ParseError "Malformed factor")
 
-(* Precedence climbing parser *)
 and parse_exp tokens min_prec =
   let left, tokens = parse_factor tokens in
   parse_exp_loop left tokens min_prec
 
 and parse_exp_loop left tokens min_prec =
   match tokens with
-  | tok :: _ when is_binary_op tok && precedence tok >= min_prec ->
+  | tok :: rest when is_binary_op tok && precedence tok >= min_prec ->
       let op = binop_of_token tok in
-      let rest = List.tl tokens in
       let right, rest =
         parse_exp rest (precedence tok + 1)
       in

@@ -1,15 +1,27 @@
 open Asm
 
-let emit_reg = function
+let emit_reg_4byte = function
   | AX -> "%eax"
   | DX -> "%edx"
   | R10 -> "%r10d"
+  | R11 -> "%r11d"
+
+let emit_reg_1byte = function
+  | AX -> "%al"
+  | DX -> "%dl"
+  | R10 -> "%r10b"
+  | R11 -> "%r11b"
 
 let emit_operand = function
   | Imm n -> "$" ^ string_of_int n
-  | Reg r -> emit_reg r
+  | Reg r -> emit_reg_4byte r
   | Pseudo name -> name
   | Stack offset -> string_of_int offset ^ "(%rbp)"
+
+let emit_operand_1byte = function
+  | Reg r -> emit_reg_1byte r
+  | Stack offset -> string_of_int offset ^ "(%rbp)"
+  | other -> emit_operand other
 
 let emit_unop = function
   | Neg -> "negl"
@@ -19,6 +31,17 @@ let emit_binop = function
   | Add -> "addl"
   | Sub -> "subl"
   | Mult -> "imull"
+
+let emit_cond_code = function
+  | E -> "e"
+  | NE -> "ne"
+  | G -> "g"
+  | GE -> "ge"
+  | L -> "l"
+  | LE -> "le"
+
+let emit_label name =
+  "L" ^ name
 
 let emit_instruction = function
   | Mov (src, dst) ->
@@ -31,11 +54,26 @@ let emit_instruction = function
       "    " ^ emit_binop op ^ " " ^
       emit_operand src ^ ", " ^ emit_operand dst
 
-  | Cdq ->
-      "    cdq"
+  | Cmp (src, dst) ->
+      "    cmpl " ^ emit_operand src ^ ", " ^ emit_operand dst
 
   | Idiv operand ->
       "    idivl " ^ emit_operand operand
+
+  | Cdq ->
+      "    cdq"
+
+  | Jmp target ->
+      "    jmp " ^ emit_label target
+
+  | JmpCC (cond, target) ->
+      "    j" ^ emit_cond_code cond ^ " " ^ emit_label target
+
+  | SetCC (cond, operand) ->
+      "    set" ^ emit_cond_code cond ^ " " ^ emit_operand_1byte operand
+
+  | Label name ->
+      emit_label name ^ ":"
 
   | AllocateStack bytes ->
       "    subq $" ^ string_of_int bytes ^ ", %rsp"

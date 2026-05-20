@@ -8,6 +8,11 @@ and instruction =
   | Return of value
   | Unary of unary_operator * value * value
   | Binary of binary_operator * value * value * value
+  | Copy of value * value
+  | Jump of string
+  | JumpIfZero of value * string
+  | JumpIfNotZero of value * string
+  | Label of string
 
 and value =
   | Constant of int
@@ -16,6 +21,7 @@ and value =
 and unary_operator =
   | Complement
   | Negate
+  | Not
 
 and binary_operator =
   | Add
@@ -23,3 +29,9 @@ and binary_operator =
   | Multiply
   | Divide
   | Remainder
+  | Equal
+  | NotEqual
+  | LessThan
+  | LessOrEqual
+  | GreaterThan
+  | GreaterOrEqual
