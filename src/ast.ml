@@ -1,11 +1,22 @@
+(* Source Program Meaning *)
+
 type program =
   | Program of function_definition
 
 and function_definition =
-  | Function of string * statement
+  | Function of string * block_item list
+
+and block_item =
+  | S of statement
+  | D of declaration
+
+and declaration =
+  | Declaration of string * exp option
 
 and statement =
   | Return of exp
+  | Expression of exp
+  | Null
 
 and unary_operator =
   | Complement
@@ -29,5 +40,7 @@ and binary_operator =
 
 and exp =
   | Constant of int
+  | Var of string
   | Unary of unary_operator * exp
   | Binary of binary_operator * exp * exp
+  | Assignment of exp * exp

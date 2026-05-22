@@ -39,6 +39,17 @@ let rec emit_tacky_exp exp =
   | Ast.Constant n ->
       ([], Tacky.Constant n)
 
+  | Ast.Var name ->
+      ([], Tacky.Var name)
+
+  | Ast.Assignment (Ast.Var name, rhs) ->
+      let rhs_instructions, rhs_val = emit_tacky_exp rhs in
+      let dst = Tacky.Var name in
+      (rhs_instructions @ [Tacky.Copy (rhs_val, dst)], dst)
+
+  | Ast.Assignment _ ->
+      failwith "Invalid assignment target should have been rejected by resolver"
+
   | Ast.Unary (op, inner) ->
       let inner_instructions, src = emit_tacky_exp inner in
       let dst = Tacky.Var (make_temp ()) in
@@ -96,10 +107,44 @@ let rec emit_tacky_exp exp =
       in
       (left_instructions @ right_instructions @ [instruction], dst)
 
+let emit_tacky_statement stmt =
+  match stmt with
+  | Ast.Return expr ->
+      let instructions, result = emit_tacky_exp expr in
+      instructions @ [Tacky.Return result]
+
+  | Ast.Expression expr ->
+      let instructions, _ = emit_tacky_exp expr in
+      instructions
+
+  | Ast.Null ->
+      []
+
+let emit_tacky_declaration decl =
+  match decl with
+  | Ast.Declaration (_name, None) ->
+      []
+
+  | Ast.Declaration (name, Some init) ->
+      let instructions, value = emit_tacky_exp init in
+      instructions @ [Tacky.Copy (value, Tacky.Var name)]
+
+let emit_tacky_block_item item =
+  match item with
+  | Ast.S stmt ->
+      emit_tacky_statement stmt
+
+  | Ast.D decl ->
+      emit_tacky_declaration decl
+
 let gen_program program =
   match program with
-  | Ast.Program (Ast.Function (name, Ast.Return expr)) ->
-      let instructions, result = emit_tacky_exp expr in
+  | Ast.Program (Ast.Function (name, body)) ->
+      let instructions =
+        body
+        |> List.map emit_tacky_block_item
+        |> List.flatten
+      in
       Tacky.Program (
-        Tacky.Function (name, instructions @ [Tacky.Return result])
+        Tacky.Function (name, instructions @ [Tacky.Return (Tacky.Constant 0)])
       )

@@ -14,12 +14,12 @@ let compile filename =
   let source = read_file filename in
   let tokens = Lexer.lex source in
   let ast = Parser.parse tokens in
+  let ast = Resolve.resolve_program ast in
   let tacky = Tackygen.gen_program ast in
   let asm = Codegen.gen_program tacky in
   let output = Emit.emit_program asm in
   write_file "out.s" output
 
-(*Compiles actualy .c file*)
 let () =
   if Array.length Sys.argv <> 2 then
     failwith "Usage: ./mycc <source.c>"

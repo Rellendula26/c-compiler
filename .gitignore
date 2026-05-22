@@ -1,9 +1,7 @@
 *.cmo
 *.cmi
-*.o
-*.s
-*.i
-*.dSYM/
 mycc
 out.s
-return_42
+test
+test.c
+.DS_Store

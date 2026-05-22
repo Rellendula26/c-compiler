@@ -23,6 +23,7 @@ type token =
   | LessEqual
   | Greater
   | GreaterEqual
+  | Assign
 
   | LParen
   | RParen
@@ -95,7 +96,7 @@ let lex input =
           if i + 1 < len && input.[i + 1] = '=' then
             lex_at (i + 2) (EqualEqual :: acc)
           else
-            raise (LexError "Unexpected character: =")
+            lex_at (i + 1) (Assign :: acc)
 
       | '<' ->
           if i + 1 < len && input.[i + 1] = '=' then
