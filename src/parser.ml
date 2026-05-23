@@ -79,26 +79,20 @@ and parse_exp tokens min_prec =
 and parse_exp_loop left tokens min_prec =
   match tokens with
   | Assign :: rest when precedence Assign >= min_prec ->
-      let right, rest =
-        parse_exp rest (precedence Assign)
-      in
+      let right, rest = parse_exp rest (precedence Assign) in
       let new_left = Assignment (left, right) in
       parse_exp_loop new_left rest min_prec
 
   | Question :: rest when precedence Question >= min_prec ->
       let middle, rest = parse_exp rest 0 in
       let rest = expect Colon rest in
-      let right, rest =
-        parse_exp rest (precedence Question)
-      in
+      let right, rest = parse_exp rest (precedence Question) in
       let new_left = Conditional (left, middle, right) in
       parse_exp_loop new_left rest min_prec
 
   | tok :: rest when is_expression_op tok && precedence tok >= min_prec ->
       let op = binop_of_token tok in
-      let right, rest =
-        parse_exp rest (precedence tok + 1)
-      in
+      let right, rest = parse_exp rest (precedence tok + 1) in
       let new_left = Binary (op, left, right) in
       parse_exp_loop new_left rest min_prec
 
@@ -138,6 +132,10 @@ let rec parse_statement tokens =
        | _ ->
            (If (condition, then_stmt, None), rest))
 
+  | LBrace :: _ ->
+      let block, rest = parse_block tokens in
+      (Compound block, rest)
+
   | Semicolon :: rest ->
       (Null, rest)
 
@@ -146,7 +144,12 @@ let rec parse_statement tokens =
       let rest = expect Semicolon rest in
       (Expression expr, rest)
 
-let parse_block_item tokens =
+and parse_block tokens =
+  let tokens = expect LBrace tokens in
+  let items, tokens = parse_block_items tokens [] in
+  (Block items, tokens)
+
+and parse_block_item tokens =
   match tokens with
   | IntKw :: _ ->
       let decl, rest = parse_declaration tokens in
@@ -156,13 +159,13 @@ let parse_block_item tokens =
       let stmt, rest = parse_statement tokens in
       (S stmt, rest)
 
-let rec parse_block_items tokens acc =
+and parse_block_items tokens acc =
   match tokens with
   | RBrace :: rest ->
       (List.rev acc, rest)
 
   | [] ->
-      raise (ParseError "Unexpected end of input in function body")
+      raise (ParseError "Unexpected end of input in block")
 
   | _ ->
       let item, rest = parse_block_item tokens in
@@ -175,8 +178,7 @@ let parse_function tokens =
       let tokens = expect LParen rest in
       let tokens = expect VoidKw tokens in
       let tokens = expect RParen tokens in
-      let tokens = expect LBrace tokens in
-      let body, tokens = parse_block_items tokens [] in
+      let body, tokens = parse_block tokens in
       (Function (name, body), tokens)
 
   | _ ->

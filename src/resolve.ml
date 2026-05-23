@@ -4,6 +4,11 @@ exception ResolveError of string
 
 module StringMap = Map.Make(String)
 
+type map_entry = {
+  unique_name : string;
+  from_current_block : bool;
+}
+
 let counter = ref 0
 
 let make_unique name =
@@ -11,16 +16,24 @@ let make_unique name =
   incr counter;
   unique
 
+let copy_env_for_inner_block env =
+  StringMap.map
+    (fun entry -> { entry with from_current_block = false })
+    env
+
+let lookup_var env name =
+  if StringMap.mem name env then
+    Var ((StringMap.find name env).unique_name)
+  else
+    raise (ResolveError ("Undeclared variable: " ^ name))
+
 let rec resolve_exp env exp =
   match exp with
   | Constant _ ->
       exp
 
   | Var name ->
-      if StringMap.mem name env then
-        Var (StringMap.find name env)
-      else
-        raise (ResolveError ("Undeclared variable: " ^ name))
+      lookup_var env name
 
   | Unary (op, inner) ->
       Unary (op, resolve_exp env inner)
@@ -60,17 +73,27 @@ let rec resolve_statement env stmt =
       in
       If (condition, then_stmt, else_stmt)
 
+  | Compound block ->
+      let inner_env = copy_env_for_inner_block env in
+      Compound (resolve_block inner_env block)
+
   | Null ->
       Null
 
-let resolve_declaration env decl =
+and resolve_declaration env decl =
   match decl with
   | Declaration (name, init) ->
-      if StringMap.mem name env then
+      if StringMap.mem name env
+         && (StringMap.find name env).from_current_block then
         raise (ResolveError ("Duplicate variable declaration: " ^ name))
       else
         let unique_name = make_unique name in
-        let env = StringMap.add name unique_name env in
+        let env =
+          StringMap.add
+            name
+            { unique_name; from_current_block = true }
+            env
+        in
         let init =
           match init with
           | None -> None
@@ -78,7 +101,7 @@ let resolve_declaration env decl =
         in
         (env, Declaration (unique_name, init))
 
-let resolve_block_item env item =
+and resolve_block_item env item =
   match item with
   | D decl ->
       let env, decl = resolve_declaration env decl in
@@ -88,17 +111,22 @@ let resolve_block_item env item =
       let stmt = resolve_statement env stmt in
       (env, S stmt)
 
-let resolve_function = function
-  | Function (name, body) ->
-      let _, resolved_body =
+and resolve_block env block =
+  match block with
+  | Block items ->
+      let _, resolved_items =
         List.fold_left
           (fun (env, acc) item ->
             let env, item = resolve_block_item env item in
             (env, acc @ [item]))
-          (StringMap.empty, [])
-          body
+          (env, [])
+          items
       in
-      Function (name, resolved_body)
+      Block resolved_items
+
+let resolve_function = function
+  | Function (name, body) ->
+      Function (name, resolve_block StringMap.empty body)
 
 let resolve_program = function
   | Program func ->

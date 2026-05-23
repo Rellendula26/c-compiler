@@ -131,7 +131,14 @@ let rec emit_tacky_exp exp =
       in
       (left_instructions @ right_instructions @ [instruction], dst)
 
-let rec emit_tacky_statement stmt =
+let rec emit_tacky_block block =
+  match block with
+  | Ast.Block items ->
+      items
+      |> List.map emit_tacky_block_item
+      |> List.flatten
+
+and emit_tacky_statement stmt =
   match stmt with
   | Ast.Return expr ->
       let instructions, result = emit_tacky_exp expr in
@@ -160,10 +167,13 @@ let rec emit_tacky_statement stmt =
       @ emit_tacky_statement else_stmt
       @ [Tacky.Label end_label]
 
+  | Ast.Compound block ->
+      emit_tacky_block block
+
   | Ast.Null ->
       []
 
-let emit_tacky_declaration decl =
+and emit_tacky_declaration decl =
   match decl with
   | Ast.Declaration (_name, None) ->
       []
@@ -172,7 +182,7 @@ let emit_tacky_declaration decl =
       let instructions, value = emit_tacky_exp init in
       instructions @ [Tacky.Copy (value, Tacky.Var name)]
 
-let emit_tacky_block_item item =
+and emit_tacky_block_item item =
   match item with
   | Ast.S stmt ->
       emit_tacky_statement stmt
@@ -183,11 +193,7 @@ let emit_tacky_block_item item =
 let gen_program program =
   match program with
   | Ast.Program (Ast.Function (name, body)) ->
-      let instructions =
-        body
-        |> List.map emit_tacky_block_item
-        |> List.flatten
-      in
+      let instructions = emit_tacky_block body in
       Tacky.Program (
         Tacky.Function (name, instructions @ [Tacky.Return (Tacky.Constant 0)])
       )

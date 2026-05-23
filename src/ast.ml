@@ -4,7 +4,10 @@ type program =
   | Program of function_definition
 
 and function_definition =
-  | Function of string * block_item list
+  | Function of string * block
+
+and block =
+  | Block of block_item list
 
 and block_item =
   | S of statement
@@ -17,6 +20,7 @@ and statement =
   | Return of exp
   | Expression of exp
   | If of exp * statement * statement option
+  | Compound of block
   | Null
 
 and unary_operator =
@@ -45,4 +49,4 @@ and exp =
   | Unary of unary_operator * exp
   | Binary of binary_operator * exp * exp
   | Assignment of exp * exp
-  | Conditional of exp * exp * exp
+  | Conditional of exp * exp * exp 
