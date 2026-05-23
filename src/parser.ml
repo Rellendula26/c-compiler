@@ -15,14 +15,16 @@ let precedence = function
   | EqualEqual | BangEqual -> 30
   | And -> 10
   | Or -> 5
+  | Question -> 3
   | Assign -> 1
-  | _ -> raise (ParseError "Not a binary operator")
+  | _ -> raise (ParseError "Not an expression operator")
 
-let is_binary_op = function
+let is_expression_op = function
   | Plus | Minus | Star | Slash | Percent
   | And | Or
   | EqualEqual | BangEqual
   | Less | LessEqual | Greater | GreaterEqual
+  | Question
   | Assign -> true
   | _ -> false
 
@@ -83,7 +85,16 @@ and parse_exp_loop left tokens min_prec =
       let new_left = Assignment (left, right) in
       parse_exp_loop new_left rest min_prec
 
-  | tok :: rest when is_binary_op tok && precedence tok >= min_prec ->
+  | Question :: rest when precedence Question >= min_prec ->
+      let middle, rest = parse_exp rest 0 in
+      let rest = expect Colon rest in
+      let right, rest =
+        parse_exp rest (precedence Question)
+      in
+      let new_left = Conditional (left, middle, right) in
+      parse_exp_loop new_left rest min_prec
+
+  | tok :: rest when is_expression_op tok && precedence tok >= min_prec ->
       let op = binop_of_token tok in
       let right, rest =
         parse_exp rest (precedence tok + 1)
@@ -108,12 +119,24 @@ let parse_declaration tokens =
   | _ ->
       raise (ParseError "Malformed declaration")
 
-let parse_statement tokens =
+let rec parse_statement tokens =
   match tokens with
   | ReturnKw :: rest ->
       let expr, rest = parse_exp rest 0 in
       let rest = expect Semicolon rest in
       (Return expr, rest)
+
+  | IfKw :: rest ->
+      let rest = expect LParen rest in
+      let condition, rest = parse_exp rest 0 in
+      let rest = expect RParen rest in
+      let then_stmt, rest = parse_statement rest in
+      (match rest with
+       | ElseKw :: rest ->
+           let else_stmt, rest = parse_statement rest in
+           (If (condition, then_stmt, Some else_stmt), rest)
+       | _ ->
+           (If (condition, then_stmt, None), rest))
 
   | Semicolon :: rest ->
       (Null, rest)

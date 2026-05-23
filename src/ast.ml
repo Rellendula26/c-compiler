@@ -16,6 +16,7 @@ and declaration =
 and statement =
   | Return of exp
   | Expression of exp
+  | If of exp * statement * statement option
   | Null
 
 and unary_operator =
@@ -44,3 +45,4 @@ and exp =
   | Unary of unary_operator * exp
   | Binary of binary_operator * exp * exp
   | Assignment of exp * exp
+  | Conditional of exp * exp * exp

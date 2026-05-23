@@ -1,1 +1,1 @@
-int main(void) { int a; int a; return 0; }
+int main(void) { int a = 5; if (a > 3) return a; else return 0; }

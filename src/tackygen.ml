@@ -50,6 +50,30 @@ let rec emit_tacky_exp exp =
   | Ast.Assignment _ ->
       failwith "Invalid assignment target should have been rejected by resolver"
 
+  | Ast.Conditional (condition, then_exp, else_exp) ->
+      let condition_instructions, condition_val = emit_tacky_exp condition in
+      let then_instructions, then_val = emit_tacky_exp then_exp in
+      let else_instructions, else_val = emit_tacky_exp else_exp in
+      let dst = Tacky.Var (make_temp ()) in
+      let else_label = make_label "conditional_else" in
+      let end_label = make_label "conditional_end" in
+      (
+        condition_instructions
+        @ [Tacky.JumpIfZero (condition_val, else_label)]
+        @ then_instructions
+        @ [
+            Tacky.Copy (then_val, dst);
+            Tacky.Jump end_label;
+            Tacky.Label else_label;
+          ]
+        @ else_instructions
+        @ [
+            Tacky.Copy (else_val, dst);
+            Tacky.Label end_label;
+          ],
+        dst
+      )
+
   | Ast.Unary (op, inner) ->
       let inner_instructions, src = emit_tacky_exp inner in
       let dst = Tacky.Var (make_temp ()) in
@@ -107,7 +131,7 @@ let rec emit_tacky_exp exp =
       in
       (left_instructions @ right_instructions @ [instruction], dst)
 
-let emit_tacky_statement stmt =
+let rec emit_tacky_statement stmt =
   match stmt with
   | Ast.Return expr ->
       let instructions, result = emit_tacky_exp expr in
@@ -116,6 +140,25 @@ let emit_tacky_statement stmt =
   | Ast.Expression expr ->
       let instructions, _ = emit_tacky_exp expr in
       instructions
+
+  | Ast.If (condition, then_stmt, None) ->
+      let condition_instructions, condition_val = emit_tacky_exp condition in
+      let end_label = make_label "if_end" in
+      condition_instructions
+      @ [Tacky.JumpIfZero (condition_val, end_label)]
+      @ emit_tacky_statement then_stmt
+      @ [Tacky.Label end_label]
+
+  | Ast.If (condition, then_stmt, Some else_stmt) ->
+      let condition_instructions, condition_val = emit_tacky_exp condition in
+      let else_label = make_label "if_else" in
+      let end_label = make_label "if_end" in
+      condition_instructions
+      @ [Tacky.JumpIfZero (condition_val, else_label)]
+      @ emit_tacky_statement then_stmt
+      @ [Tacky.Jump end_label; Tacky.Label else_label]
+      @ emit_tacky_statement else_stmt
+      @ [Tacky.Label end_label]
 
   | Ast.Null ->
       []

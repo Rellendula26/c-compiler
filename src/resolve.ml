@@ -35,13 +35,30 @@ let rec resolve_exp env exp =
        | _ ->
            raise (ResolveError "Invalid assignment target"))
 
-let resolve_statement env stmt =
+  | Conditional (condition, then_exp, else_exp) ->
+      Conditional (
+        resolve_exp env condition,
+        resolve_exp env then_exp,
+        resolve_exp env else_exp
+      )
+
+let rec resolve_statement env stmt =
   match stmt with
   | Return exp ->
       Return (resolve_exp env exp)
 
   | Expression exp ->
       Expression (resolve_exp env exp)
+
+  | If (condition, then_stmt, else_stmt) ->
+      let condition = resolve_exp env condition in
+      let then_stmt = resolve_statement env then_stmt in
+      let else_stmt =
+        match else_stmt with
+        | None -> None
+        | Some stmt -> Some (resolve_statement env stmt)
+      in
+      If (condition, then_stmt, else_stmt)
 
   | Null ->
       Null

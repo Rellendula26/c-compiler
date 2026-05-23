@@ -4,6 +4,8 @@ type token =
   | IntKw
   | VoidKw
   | ReturnKw
+  | IfKw
+  | ElseKw
   | Ident of string
   | IntConst of int
 
@@ -24,6 +26,9 @@ type token =
   | Greater
   | GreaterEqual
   | Assign
+
+  | Question
+  | Colon
 
   | LParen
   | RParen
@@ -52,6 +57,8 @@ let keyword_of_ident = function
   | "int" -> Some IntKw
   | "void" -> Some VoidKw
   | "return" -> Some ReturnKw
+  | "if" -> Some IfKw
+  | "else" -> Some ElseKw
   | _ -> None
 
 let lex input =
@@ -70,6 +77,8 @@ let lex input =
       | '{' -> lex_at (i + 1) (LBrace :: acc)
       | '}' -> lex_at (i + 1) (RBrace :: acc)
       | ';' -> lex_at (i + 1) (Semicolon :: acc)
+      | '?' -> lex_at (i + 1) (Question :: acc)
+      | ':' -> lex_at (i + 1) (Colon :: acc)
 
       | '~' ->
           lex_at (i + 1) (Tilde :: acc)
