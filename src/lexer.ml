@@ -9,6 +9,12 @@ type token =
   | Ident of string
   | IntConst of int
 
+  | DoKw
+  | WhileKw
+  | ForKw
+  | BreakKw
+  | ContinueKw
+
   | Minus
   | Tilde
   | Plus
@@ -59,6 +65,11 @@ let keyword_of_ident = function
   | "return" -> Some ReturnKw
   | "if" -> Some IfKw
   | "else" -> Some ElseKw
+  | "do" -> Some DoKw
+  | "while" -> Some WhileKw
+  | "for" -> Some ForKw
+  | "break" -> Some BreakKw
+  | "continue" -> Some ContinueKw
   | _ -> None
 
 let lex input =

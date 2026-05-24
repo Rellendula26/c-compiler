@@ -27,7 +27,11 @@ let lookup_var env name =
   else
     raise (ResolveError ("Undeclared variable: " ^ name))
 
-let rec resolve_exp env exp =
+let rec resolve_optional_exp env = function
+  | None -> None
+  | Some exp -> Some (resolve_exp env exp)
+
+and resolve_exp env exp =
   match exp with
   | Constant _ ->
       exp
@@ -77,8 +81,41 @@ let rec resolve_statement env stmt =
       let inner_env = copy_env_for_inner_block env in
       Compound (resolve_block inner_env block)
 
+  | Break label ->
+      Break label
+
+  | Continue label ->
+      Continue label
+
+  | While (condition, body, label) ->
+      let condition = resolve_exp env condition in
+      let body = resolve_statement env body in
+      While (condition, body, label)
+
+  | DoWhile (body, condition, label) ->
+      let body = resolve_statement env body in
+      let condition = resolve_exp env condition in
+      DoWhile (body, condition, label)
+
+  | For (init, condition, post, body, label) ->
+      let loop_env = copy_env_for_inner_block env in
+      let loop_env, init = resolve_for_init loop_env init in
+      let condition = resolve_optional_exp loop_env condition in
+      let post = resolve_optional_exp loop_env post in
+      let body = resolve_statement loop_env body in
+      For (init, condition, post, body, label)
+
   | Null ->
       Null
+
+and resolve_for_init env init =
+  match init with
+  | InitDecl decl ->
+      let env, decl = resolve_declaration env decl in
+      (env, InitDecl decl)
+
+  | InitExp exp_opt ->
+      (env, InitExp (resolve_optional_exp env exp_opt))
 
 and resolve_declaration env decl =
   match decl with

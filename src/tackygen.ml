@@ -14,6 +14,16 @@ let make_label prefix =
   incr label_counter;
   name
 
+let break_label loop_label =
+  "break_" ^ loop_label
+
+let continue_label loop_label =
+  "continue_" ^ loop_label
+
+let require_label = function
+  | Some label -> label
+  | None -> failwith "Loop statement should have been labeled"
+
 let convert_unop = function
   | Ast.Complement -> Tacky.Complement
   | Ast.Negate -> Tacky.Negate
@@ -131,6 +141,14 @@ let rec emit_tacky_exp exp =
       in
       (left_instructions @ right_instructions @ [instruction], dst)
 
+let emit_optional_exp = function
+  | None ->
+      []
+
+  | Some exp ->
+      let instructions, _ = emit_tacky_exp exp in
+      instructions
+
 let rec emit_tacky_block block =
   match block with
   | Ast.Block items ->
@@ -170,6 +188,68 @@ and emit_tacky_statement stmt =
   | Ast.Compound block ->
       emit_tacky_block block
 
+  | Ast.Break label ->
+      let label = require_label label in
+      [Tacky.Jump (break_label label)]
+
+  | Ast.Continue label ->
+      let label = require_label label in
+      [Tacky.Jump (continue_label label)]
+
+  | Ast.While (condition, body, label) ->
+      let label = require_label label in
+      let condition_instructions, condition_val = emit_tacky_exp condition in
+      let body_instructions = emit_tacky_statement body in
+      let continue_label = continue_label label in
+      let break_label = break_label label in
+      [Tacky.Label continue_label]
+      @ condition_instructions
+      @ [Tacky.JumpIfZero (condition_val, break_label)]
+      @ body_instructions
+      @ [Tacky.Jump continue_label; Tacky.Label break_label]
+
+  | Ast.DoWhile (body, condition, label) ->
+      let label = require_label label in
+      let start_label = "start_" ^ label in
+      let continue_label = continue_label label in
+      let break_label = break_label label in
+      let body_instructions = emit_tacky_statement body in
+      let condition_instructions, condition_val = emit_tacky_exp condition in
+      [Tacky.Label start_label]
+      @ body_instructions
+      @ [Tacky.Label continue_label]
+      @ condition_instructions
+      @ [Tacky.JumpIfNotZero (condition_val, start_label)]
+      @ [Tacky.Label break_label]
+
+  | Ast.For (init, condition, post, body, label) ->
+      let label = require_label label in
+      let start_label = "start_" ^ label in
+      let continue_label = continue_label label in
+      let break_label = break_label label in
+      let init_instructions = emit_tacky_for_init init in
+      let condition_instructions, condition_val_opt =
+        match condition with
+        | None -> ([], None)
+        | Some exp ->
+            let instructions, value = emit_tacky_exp exp in
+            (instructions, Some value)
+      in
+      let post_instructions = emit_optional_exp post in
+      let body_instructions = emit_tacky_statement body in
+      init_instructions
+      @ [Tacky.Label start_label]
+      @ condition_instructions
+      @
+      (match condition_val_opt with
+       | None -> []
+       | Some condition_val ->
+           [Tacky.JumpIfZero (condition_val, break_label)])
+      @ body_instructions
+      @ [Tacky.Label continue_label]
+      @ post_instructions
+      @ [Tacky.Jump start_label; Tacky.Label break_label]
+
   | Ast.Null ->
       []
 
@@ -181,6 +261,18 @@ and emit_tacky_declaration decl =
   | Ast.Declaration (name, Some init) ->
       let instructions, value = emit_tacky_exp init in
       instructions @ [Tacky.Copy (value, Tacky.Var name)]
+
+and emit_tacky_for_init init =
+  match init with
+  | Ast.InitDecl decl ->
+      emit_tacky_declaration decl
+
+  | Ast.InitExp None ->
+      []
+
+  | Ast.InitExp (Some exp) ->
+      let instructions, _ = emit_tacky_exp exp in
+      instructions
 
 and emit_tacky_block_item item =
   match item with

@@ -15,6 +15,7 @@ let compile filename =
   let tokens = Lexer.lex source in
   let ast = Parser.parse tokens in
   let ast = Resolve.resolve_program ast in
+  let ast = Looplabel.label_program ast in
   let tacky = Tackygen.gen_program ast in
   let asm = Codegen.gen_program tacky in
   let output = Emit.emit_program asm in

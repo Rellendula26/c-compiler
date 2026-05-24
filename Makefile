@@ -7,6 +7,7 @@ all:
 	$(OCAMLC) $(FLAGS) -c src/lexer.ml
 	$(OCAMLC) $(FLAGS) -c src/parser.ml
 	$(OCAMLC) $(FLAGS) -c src/resolve.ml
+	$(OCAMLC) $(FLAGS) -c src/looplabel.ml
 	$(OCAMLC) $(FLAGS) -c src/tacky.ml
 	$(OCAMLC) $(FLAGS) -c src/tackygen.ml
 	$(OCAMLC) $(FLAGS) -c src/asm.ml
@@ -18,6 +19,7 @@ all:
 		src/lexer.cmo \
 		src/parser.cmo \
 		src/resolve.cmo \
+		src/looplabel.cmo \
 		src/tacky.cmo \
 		src/tackygen.cmo \
 		src/asm.cmo \

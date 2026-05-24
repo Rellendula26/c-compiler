@@ -16,11 +16,20 @@ and block_item =
 and declaration =
   | Declaration of string * exp option
 
+and for_init =
+  | InitDecl of declaration
+  | InitExp of exp option
+
 and statement =
   | Return of exp
   | Expression of exp
   | If of exp * statement * statement option
   | Compound of block
+  | Break of string option
+  | Continue of string option
+  | While of exp * statement * string option
+  | DoWhile of statement * exp * string option
+  | For of for_init * exp option * exp option * statement * string option
   | Null
 
 and unary_operator =
@@ -49,4 +58,4 @@ and exp =
   | Unary of unary_operator * exp
   | Binary of binary_operator * exp * exp
   | Assignment of exp * exp
-  | Conditional of exp * exp * exp 
+  | Conditional of exp * exp * exp

@@ -46,11 +46,8 @@ let binop_of_token = function
 
 let rec parse_factor tokens =
   match tokens with
-  | IntConst n :: rest ->
-      (Constant n, rest)
-
-  | Ident name :: rest ->
-      (Var name, rest)
+  | IntConst n :: rest -> (Constant n, rest)
+  | Ident name :: rest -> (Var name, rest)
 
   | Minus :: rest ->
       let inner, rest = parse_factor rest in
@@ -69,8 +66,7 @@ let rec parse_factor tokens =
       let rest = expect RParen rest in
       (inner, rest)
 
-  | _ ->
-      raise (ParseError "Malformed factor")
+  | _ -> raise (ParseError "Malformed factor")
 
 and parse_exp tokens min_prec =
   let left, tokens = parse_factor tokens in
@@ -80,24 +76,29 @@ and parse_exp_loop left tokens min_prec =
   match tokens with
   | Assign :: rest when precedence Assign >= min_prec ->
       let right, rest = parse_exp rest (precedence Assign) in
-      let new_left = Assignment (left, right) in
-      parse_exp_loop new_left rest min_prec
+      parse_exp_loop (Assignment (left, right)) rest min_prec
 
   | Question :: rest when precedence Question >= min_prec ->
       let middle, rest = parse_exp rest 0 in
       let rest = expect Colon rest in
       let right, rest = parse_exp rest (precedence Question) in
-      let new_left = Conditional (left, middle, right) in
-      parse_exp_loop new_left rest min_prec
+      parse_exp_loop (Conditional (left, middle, right)) rest min_prec
 
   | tok :: rest when is_expression_op tok && precedence tok >= min_prec ->
       let op = binop_of_token tok in
       let right, rest = parse_exp rest (precedence tok + 1) in
-      let new_left = Binary (op, left, right) in
-      parse_exp_loop new_left rest min_prec
+      parse_exp_loop (Binary (op, left, right)) rest min_prec
 
+  | _ -> (left, tokens)
+
+let parse_optional_exp end_token tokens =
+  match tokens with
+  | tok :: rest when tok = end_token ->
+      (None, rest)
   | _ ->
-      (left, tokens)
+      let expr, tokens = parse_exp tokens 0 in
+      let tokens = expect end_token tokens in
+      (Some expr, tokens)
 
 let parse_declaration tokens =
   let tokens = expect IntKw tokens in
@@ -110,8 +111,21 @@ let parse_declaration tokens =
   | Ident name :: Semicolon :: rest ->
       (Declaration (name, None), rest)
 
+  | _ -> raise (ParseError "Malformed declaration")
+
+let parse_for_init tokens =
+  match tokens with
+  | IntKw :: _ ->
+      let decl, rest = parse_declaration tokens in
+      (InitDecl decl, rest)
+
+  | Semicolon :: rest ->
+      (InitExp None, rest)
+
   | _ ->
-      raise (ParseError "Malformed declaration")
+      let expr, rest = parse_exp tokens 0 in
+      let rest = expect Semicolon rest in
+      (InitExp (Some expr), rest)
 
 let rec parse_statement tokens =
   match tokens with
@@ -131,6 +145,38 @@ let rec parse_statement tokens =
            (If (condition, then_stmt, Some else_stmt), rest)
        | _ ->
            (If (condition, then_stmt, None), rest))
+
+  | WhileKw :: rest ->
+      let rest = expect LParen rest in
+      let condition, rest = parse_exp rest 0 in
+      let rest = expect RParen rest in
+      let body, rest = parse_statement rest in
+      (While (condition, body, None), rest)
+
+  | DoKw :: rest ->
+      let body, rest = parse_statement rest in
+      let rest = expect WhileKw rest in
+      let rest = expect LParen rest in
+      let condition, rest = parse_exp rest 0 in
+      let rest = expect RParen rest in
+      let rest = expect Semicolon rest in
+      (DoWhile (body, condition, None), rest)
+
+  | ForKw :: rest ->
+      let rest = expect LParen rest in
+      let init, rest = parse_for_init rest in
+      let condition, rest = parse_optional_exp Semicolon rest in
+      let post, rest = parse_optional_exp RParen rest in
+      let body, rest = parse_statement rest in
+      (For (init, condition, post, body, None), rest)
+
+  | BreakKw :: rest ->
+      let rest = expect Semicolon rest in
+      (Break None, rest)
+
+  | ContinueKw :: rest ->
+      let rest = expect Semicolon rest in
+      (Continue None, rest)
 
   | LBrace :: _ ->
       let block, rest = parse_block tokens in
@@ -154,19 +200,14 @@ and parse_block_item tokens =
   | IntKw :: _ ->
       let decl, rest = parse_declaration tokens in
       (D decl, rest)
-
   | _ ->
       let stmt, rest = parse_statement tokens in
       (S stmt, rest)
 
 and parse_block_items tokens acc =
   match tokens with
-  | RBrace :: rest ->
-      (List.rev acc, rest)
-
-  | [] ->
-      raise (ParseError "Unexpected end of input in block")
-
+  | RBrace :: rest -> (List.rev acc, rest)
+  | [] -> raise (ParseError "Unexpected end of input in block")
   | _ ->
       let item, rest = parse_block_item tokens in
       parse_block_items rest (item :: acc)
@@ -180,9 +221,7 @@ let parse_function tokens =
       let tokens = expect RParen tokens in
       let body, tokens = parse_block tokens in
       (Function (name, body), tokens)
-
-  | _ ->
-      raise (ParseError "Expected function name")
+  | _ -> raise (ParseError "Expected function name")
 
 let parse tokens =
   let func, tokens = parse_function tokens in
