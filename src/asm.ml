@@ -1,5 +1,5 @@
 type program =
-  | Program of function_definition
+  | Program of function_definition list
 
 and function_definition =
   | Function of string * instruction list
@@ -15,7 +15,10 @@ and instruction =
   | JmpCC of cond_code * string
   | SetCC of cond_code * operand
   | Label of string
+  | Push of operand
+  | Call of string
   | AllocateStack of int
+  | DeallocateStack of int
   | Ret
 
 and unary_operator =
@@ -43,6 +46,11 @@ and operand =
 
 and reg =
   | AX
+  | CX
   | DX
+  | DI
+  | SI
+  | R8
+  | R9
   | R10
   | R11

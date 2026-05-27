@@ -1,10 +1,10 @@
 (* Source Program Meaning *)
 
 type program =
-  | Program of function_definition
+  | Program of function_declaration list
 
-and function_definition =
-  | Function of string * block
+and function_declaration =
+  | FunctionDeclaration of string * string list * block option
 
 and block =
   | Block of block_item list
@@ -14,10 +14,14 @@ and block_item =
   | D of declaration
 
 and declaration =
-  | Declaration of string * exp option
+  | VarDecl of variable_declaration
+  | FunDecl of function_declaration
+
+and variable_declaration =
+  | VariableDeclaration of string * exp option
 
 and for_init =
-  | InitDecl of declaration
+  | InitDecl of variable_declaration
   | InitExp of exp option
 
 and statement =
@@ -59,3 +63,4 @@ and exp =
   | Binary of binary_operator * exp * exp
   | Assignment of exp * exp
   | Conditional of exp * exp * exp
+  | FunctionCall of string * exp list

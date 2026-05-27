@@ -44,10 +44,27 @@ let binop_of_token = function
   | GreaterEqual -> GreaterOrEqual
   | _ -> raise (ParseError "Expected binary operator")
 
-let rec parse_factor tokens =
+let rec parse_argument_list tokens acc =
+  match tokens with
+  | RParen :: rest ->
+      (List.rev acc, rest)
+  | _ ->
+      let arg, rest = parse_exp tokens 0 in
+      (match rest with
+       | Comma :: rest -> parse_argument_list rest (arg :: acc)
+       | RParen :: rest -> (List.rev (arg :: acc), rest)
+       | _ -> raise (ParseError "Malformed argument list"))
+
+and parse_factor tokens =
   match tokens with
   | IntConst n :: rest -> (Constant n, rest)
-  | Ident name :: rest -> (Var name, rest)
+
+  | Ident name :: LParen :: rest ->
+      let args, rest = parse_argument_list rest [] in
+      (FunctionCall (name, args), rest)
+
+  | Ident name :: rest ->
+      (Var name, rest)
 
   | Minus :: rest ->
       let inner, rest = parse_factor rest in
@@ -93,31 +110,74 @@ and parse_exp_loop left tokens min_prec =
 
 let parse_optional_exp end_token tokens =
   match tokens with
-  | tok :: rest when tok = end_token ->
-      (None, rest)
+  | tok :: rest when tok = end_token -> (None, rest)
   | _ ->
       let expr, tokens = parse_exp tokens 0 in
       let tokens = expect end_token tokens in
       (Some expr, tokens)
 
-let parse_declaration tokens =
-  let tokens = expect IntKw tokens in
+let rec parse_param_list tokens acc =
   match tokens with
-  | Ident name :: Assign :: rest ->
+  | VoidKw :: RParen :: rest ->
+      ([], rest)
+
+  | IntKw :: Ident name :: rest ->
+      let acc = name :: acc in
+      (match rest with
+       | Comma :: rest -> parse_param_list rest acc
+       | RParen :: rest -> (List.rev acc, rest)
+       | _ -> raise (ParseError "Malformed parameter list"))
+
+  | _ ->
+      raise (ParseError "Malformed parameter list")
+
+let parse_variable_declaration_after_name name tokens =
+  match tokens with
+  | Assign :: rest ->
       let init, rest = parse_exp rest 0 in
       let rest = expect Semicolon rest in
-      (Declaration (name, Some init), rest)
+      (VariableDeclaration (name, Some init), rest)
 
-  | Ident name :: Semicolon :: rest ->
-      (Declaration (name, None), rest)
+  | Semicolon :: rest ->
+      (VariableDeclaration (name, None), rest)
 
-  | _ -> raise (ParseError "Malformed declaration")
+  | _ ->
+      raise (ParseError "Malformed variable declaration")
 
-let parse_for_init tokens =
+let rec parse_declaration tokens =
+  let tokens = expect IntKw tokens in
   match tokens with
+  | Ident name :: LParen :: rest ->
+      let params, rest = parse_param_list rest [] in
+      (match rest with
+       | Semicolon :: rest ->
+           (FunDecl (FunctionDeclaration (name, params, None)), rest)
+       | LBrace :: _ ->
+           let body, rest = parse_block rest in
+           (FunDecl (FunctionDeclaration (name, params, Some body)), rest)
+       | _ ->
+           raise (ParseError "Malformed function declaration"))
+
+  | Ident name :: rest ->
+      let var_decl, rest = parse_variable_declaration_after_name name rest in
+      (VarDecl var_decl, rest)
+
+  | _ ->
+      raise (ParseError "Malformed declaration")
+
+and parse_for_init tokens =
+  match tokens with
+  | IntKw :: Ident name :: LParen :: _ ->
+      raise (ParseError "Function declaration not allowed in for initializer")
+
   | IntKw :: _ ->
-      let decl, rest = parse_declaration tokens in
-      (InitDecl decl, rest)
+      let tokens = expect IntKw tokens in
+      (match tokens with
+       | Ident name :: rest ->
+           let var_decl, rest = parse_variable_declaration_after_name name rest in
+           (InitDecl var_decl, rest)
+       | _ ->
+           raise (ParseError "Malformed for initializer"))
 
   | Semicolon :: rest ->
       (InitExp None, rest)
@@ -127,7 +187,7 @@ let parse_for_init tokens =
       let rest = expect Semicolon rest in
       (InitExp (Some expr), rest)
 
-let rec parse_statement tokens =
+and parse_statement tokens =
   match tokens with
   | ReturnKw :: rest ->
       let expr, rest = parse_exp rest 0 in
@@ -212,19 +272,17 @@ and parse_block_items tokens acc =
       let item, rest = parse_block_item tokens in
       parse_block_items rest (item :: acc)
 
-let parse_function tokens =
-  let tokens = expect IntKw tokens in
+let parse_function_declaration tokens =
+  match parse_declaration tokens with
+  | FunDecl func_decl, rest -> (func_decl, rest)
+  | VarDecl _, _ -> raise (ParseError "Top-level variable declarations not supported yet")
+
+let rec parse_function_declarations tokens acc =
   match tokens with
-  | Ident name :: rest ->
-      let tokens = expect LParen rest in
-      let tokens = expect VoidKw tokens in
-      let tokens = expect RParen tokens in
-      let body, tokens = parse_block tokens in
-      (Function (name, body), tokens)
-  | _ -> raise (ParseError "Expected function name")
+  | [] -> Program (List.rev acc)
+  | _ ->
+      let func_decl, rest = parse_function_declaration tokens in
+      parse_function_declarations rest (func_decl :: acc)
 
 let parse tokens =
-  let func, tokens = parse_function tokens in
-  match tokens with
-  | [] -> Program func
-  | _ -> raise (ParseError "Unexpected tokens after program")
+  parse_function_declarations tokens []

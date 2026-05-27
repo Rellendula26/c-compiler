@@ -1,1 +1,1 @@
-int main(void) { int x = 0; for (int i = 0; i < 5; i = i + 1) x = x + 1; return x; }
+int f(int a, int b, int c, int d, int e, int f, int g) { return g; } int main(void) { return f(1, 2, 3, 4, 5, 6, 7); }

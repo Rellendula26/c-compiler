@@ -71,9 +71,14 @@ and label_block_item current_label item =
       S (label_statement current_label stmt)
 
 let label_function = function
-  | Function (name, body) ->
-      Function (name, label_block None body)
+  | FunctionDeclaration (name, params, body) ->
+      let body =
+        match body with
+        | None -> None
+        | Some block -> Some (label_block None block)
+      in
+      FunctionDeclaration (name, params, body)
 
 let label_program = function
-  | Program func ->
-      Program (label_function func)
+  | Program funcs ->
+      Program (List.map label_function funcs)

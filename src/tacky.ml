@@ -1,9 +1,10 @@
-(*IR Between AST and Assembly CONVERTS TREE --> INSTRUCTIONS*)
+(* IR Between AST and Assembly *)
+
 type program =
-  | Program of function_definition
+  | Program of function_definition list
 
 and function_definition =
-  | Function of string * instruction list
+  | Function of string * string list * instruction list
 
 and instruction =
   | Return of value
@@ -14,6 +15,7 @@ and instruction =
   | JumpIfZero of value * string
   | JumpIfNotZero of value * string
   | Label of string
+  | FunCall of string * value list * value
 
 and value =
   | Constant of int

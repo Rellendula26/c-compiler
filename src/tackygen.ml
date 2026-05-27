@@ -52,6 +52,18 @@ let rec emit_tacky_exp exp =
   | Ast.Var name ->
       ([], Tacky.Var name)
 
+  | Ast.FunctionCall (name, args) ->
+      let arg_instructions, arg_values =
+        List.fold_left
+          (fun (all_instrs, values) arg ->
+            let instrs, value = emit_tacky_exp arg in
+            (all_instrs @ instrs, values @ [value]))
+          ([], [])
+          args
+      in
+      let dst = Tacky.Var (make_temp ()) in
+      (arg_instructions @ [Tacky.FunCall (name, arg_values, dst)], dst)
+
   | Ast.Assignment (Ast.Var name, rhs) ->
       let rhs_instructions, rhs_val = emit_tacky_exp rhs in
       let dst = Tacky.Var name in
@@ -142,8 +154,7 @@ let rec emit_tacky_exp exp =
       (left_instructions @ right_instructions @ [instruction], dst)
 
 let emit_optional_exp = function
-  | None ->
-      []
+  | None -> []
 
   | Some exp ->
       let instructions, _ = emit_tacky_exp exp in
@@ -253,19 +264,19 @@ and emit_tacky_statement stmt =
   | Ast.Null ->
       []
 
-and emit_tacky_declaration decl =
+and emit_tacky_variable_declaration decl =
   match decl with
-  | Ast.Declaration (_name, None) ->
+  | Ast.VariableDeclaration (_name, None) ->
       []
 
-  | Ast.Declaration (name, Some init) ->
+  | Ast.VariableDeclaration (name, Some init) ->
       let instructions, value = emit_tacky_exp init in
       instructions @ [Tacky.Copy (value, Tacky.Var name)]
 
 and emit_tacky_for_init init =
   match init with
   | Ast.InitDecl decl ->
-      emit_tacky_declaration decl
+      emit_tacky_variable_declaration decl
 
   | Ast.InitExp None ->
       []
@@ -279,13 +290,32 @@ and emit_tacky_block_item item =
   | Ast.S stmt ->
       emit_tacky_statement stmt
 
-  | Ast.D decl ->
-      emit_tacky_declaration decl
+  | Ast.D (Ast.VarDecl decl) ->
+      emit_tacky_variable_declaration decl
+
+  | Ast.D (Ast.FunDecl _) ->
+      []
+
+let emit_tacky_function = function
+  | Ast.FunctionDeclaration (name, params, Some body) ->
+      let instructions = emit_tacky_block body in
+      Tacky.Function (
+        name,
+        params,
+        instructions @ [Tacky.Return (Tacky.Constant 0)]
+      )
+
+  | Ast.FunctionDeclaration (_, _, None) ->
+      failwith "Function declaration should not emit code"
 
 let gen_program program =
   match program with
-  | Ast.Program (Ast.Function (name, body)) ->
-      let instructions = emit_tacky_block body in
-      Tacky.Program (
-        Tacky.Function (name, instructions @ [Tacky.Return (Tacky.Constant 0)])
-      )
+  | Ast.Program funcs ->
+      let functions =
+        funcs
+        |> List.filter (function
+             | Ast.FunctionDeclaration (_, _, Some _) -> true
+             | _ -> false)
+        |> List.map emit_tacky_function
+      in
+      Tacky.Program functions

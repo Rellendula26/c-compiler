@@ -2,13 +2,23 @@ open Asm
 
 let emit_reg_4byte = function
   | AX -> "%eax"
+  | CX -> "%ecx"
   | DX -> "%edx"
+  | DI -> "%edi"
+  | SI -> "%esi"
+  | R8 -> "%r8d"
+  | R9 -> "%r9d"
   | R10 -> "%r10d"
   | R11 -> "%r11d"
 
 let emit_reg_1byte = function
   | AX -> "%al"
+  | CX -> "%cl"
   | DX -> "%dl"
+  | DI -> "%dil"
+  | SI -> "%sil"
+  | R8 -> "%r8b"
+  | R9 -> "%r9b"
   | R10 -> "%r10b"
   | R11 -> "%r11b"
 
@@ -75,8 +85,17 @@ let emit_instruction = function
   | Label name ->
       emit_label name ^ ":"
 
+  | Push operand ->
+      "    pushq " ^ emit_operand operand
+
+  | Call name ->
+      "    call _" ^ name
+
   | AllocateStack bytes ->
       "    subq $" ^ string_of_int bytes ^ ", %rsp"
+
+  | DeallocateStack bytes ->
+      "    addq $" ^ string_of_int bytes ^ ", %rsp"
 
   | Ret ->
       "    movq %rbp, %rsp\n" ^
@@ -98,5 +117,7 @@ let emit_function = function
       body ^ "\n"
 
 let emit_program = function
-  | Program func ->
-      emit_function func
+  | Program funcs ->
+      funcs
+      |> List.map emit_function
+      |> String.concat "\n"

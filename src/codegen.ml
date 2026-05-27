@@ -10,16 +10,27 @@ let convert_val = function
 let convert_unop = function
   | Tacky.Complement -> Asm.Not
   | Tacky.Negate -> Asm.Neg
-  | Tacky.Not -> failwith "Tacky.Not handled specially"
+  | Tacky.Not -> failwith "Logical not handled specially"
 
-let cond_code_of_relop = function
+let convert_cond_code = function
   | Tacky.Equal -> Asm.E
   | Tacky.NotEqual -> Asm.NE
   | Tacky.LessThan -> Asm.L
   | Tacky.LessOrEqual -> Asm.LE
   | Tacky.GreaterThan -> Asm.G
   | Tacky.GreaterOrEqual -> Asm.GE
-  | _ -> failwith "Not a relational operator"
+  | _ -> failwith "Expected comparison operator"
+
+let arg_registers =
+  [ Asm.DI; Asm.SI; Asm.DX; Asm.CX; Asm.R8; Asm.R9 ]
+
+let rec take n xs =
+  if n <= 0 then []
+  else match xs with [] -> [] | x :: rest -> x :: take (n - 1) rest
+
+let rec drop n xs =
+  if n <= 0 then xs
+  else match xs with [] -> [] | _ :: rest -> drop (n - 1) rest
 
 let gen_instruction = function
   | Tacky.Return value ->
@@ -28,205 +39,186 @@ let gen_instruction = function
   | Tacky.Copy (src, dst) ->
       [Asm.Mov (convert_val src, convert_val dst)]
 
-  | Tacky.Jump target ->
-      [Asm.Jmp target]
-
-  | Tacky.JumpIfZero (condition, target) ->
-      [
-        Asm.Cmp (Asm.Imm 0, convert_val condition);
-        Asm.JmpCC (Asm.E, target);
-      ]
-
-  | Tacky.JumpIfNotZero (condition, target) ->
-      [
-        Asm.Cmp (Asm.Imm 0, convert_val condition);
-        Asm.JmpCC (Asm.NE, target);
-      ]
-
-  | Tacky.Label name ->
-      [Asm.Label name]
-
   | Tacky.Unary (Tacky.Not, src, dst) ->
-      let src = convert_val src in
-      let dst = convert_val dst in
       [
-        Asm.Cmp (Asm.Imm 0, src);
-        Asm.Mov (Asm.Imm 0, dst);
-        Asm.SetCC (Asm.E, dst);
+        Asm.Cmp (Asm.Imm 0, convert_val src);
+        Asm.Mov (Asm.Imm 0, convert_val dst);
+        Asm.SetCC (Asm.E, convert_val dst);
       ]
 
   | Tacky.Unary (op, src, dst) ->
-      let src = convert_val src in
-      let dst = convert_val dst in
-      [Asm.Mov (src, dst); Asm.Unary (convert_unop op, dst)]
-
-  | Tacky.Binary
-      ((Tacky.Equal | Tacky.NotEqual | Tacky.LessThan | Tacky.LessOrEqual
-        | Tacky.GreaterThan | Tacky.GreaterOrEqual) as op, src1, src2, dst) ->
-      let src1 = convert_val src1 in
-      let src2 = convert_val src2 in
-      let dst = convert_val dst in
       [
-        Asm.Cmp (src2, src1);
-        Asm.Mov (Asm.Imm 0, dst);
-        Asm.SetCC (cond_code_of_relop op, dst);
+        Asm.Mov (convert_val src, convert_val dst);
+        Asm.Unary (convert_unop op, convert_val dst);
       ]
 
   | Tacky.Binary (op, src1, src2, dst) ->
-      let src1 = convert_val src1 in
-      let src2 = convert_val src2 in
-      let dst = convert_val dst in
-      match op with
-      | Tacky.Add ->
-          [
-            Asm.Mov (src1, dst);
-            Asm.Binary (Asm.Add, src2, dst);
-          ]
+      (match op with
+       | Tacky.Add ->
+           [Asm.Mov (convert_val src1, convert_val dst);
+            Asm.Binary (Asm.Add, convert_val src2, convert_val dst)]
 
-      | Tacky.Subtract ->
-          [
-            Asm.Mov (src1, dst);
-            Asm.Binary (Asm.Sub, src2, dst);
-          ]
+       | Tacky.Subtract ->
+           [Asm.Mov (convert_val src1, convert_val dst);
+            Asm.Binary (Asm.Sub, convert_val src2, convert_val dst)]
 
-      | Tacky.Multiply ->
-          [
-            Asm.Mov (src1, dst);
-            Asm.Binary (Asm.Mult, src2, dst);
-          ]
+       | Tacky.Multiply ->
+           [Asm.Mov (convert_val src1, convert_val dst);
+            Asm.Binary (Asm.Mult, convert_val src2, convert_val dst)]
 
-      | Tacky.Divide ->
-          [
-            Asm.Mov (src1, Asm.Reg Asm.AX);
+       | Tacky.Divide ->
+           [Asm.Mov (convert_val src1, Asm.Reg Asm.AX);
             Asm.Cdq;
-            Asm.Idiv src2;
-            Asm.Mov (Asm.Reg Asm.AX, dst);
-          ]
+            Asm.Idiv (convert_val src2);
+            Asm.Mov (Asm.Reg Asm.AX, convert_val dst)]
 
-      | Tacky.Remainder ->
-          [
-            Asm.Mov (src1, Asm.Reg Asm.AX);
+       | Tacky.Remainder ->
+           [Asm.Mov (convert_val src1, Asm.Reg Asm.AX);
             Asm.Cdq;
-            Asm.Idiv src2;
-            Asm.Mov (Asm.Reg Asm.DX, dst);
-          ]
+            Asm.Idiv (convert_val src2);
+            Asm.Mov (Asm.Reg Asm.DX, convert_val dst)]
 
-      | _ ->
-          failwith "Unexpected binary operator in normal binary codegen"
+       | Tacky.Equal | Tacky.NotEqual
+       | Tacky.LessThan | Tacky.LessOrEqual
+       | Tacky.GreaterThan | Tacky.GreaterOrEqual ->
+           [Asm.Cmp (convert_val src2, convert_val src1);
+            Asm.Mov (Asm.Imm 0, convert_val dst);
+            Asm.SetCC (convert_cond_code op, convert_val dst)])
 
-let replace_operand operand state =
-  let stack_map, next_offset = state in
-  match operand with
-  | Pseudo name ->
-      if StringMap.mem name stack_map then
-        (Stack (StringMap.find name stack_map), state)
-      else
-        let new_offset = next_offset - 4 in
-        let stack_map = StringMap.add name new_offset stack_map in
-        (Stack new_offset, (stack_map, new_offset))
+  | Tacky.Jump target -> [Asm.Jmp target]
 
-  | _ ->
-      (operand, state)
+  | Tacky.JumpIfZero (condition, target) ->
+      [Asm.Cmp (Asm.Imm 0, convert_val condition); Asm.JmpCC (Asm.E, target)]
 
-let replace_instruction instruction state =
-  match instruction with
-  | Mov (src, dst) ->
-      let src, state = replace_operand src state in
-      let dst, state = replace_operand dst state in
-      (Mov (src, dst), state)
+  | Tacky.JumpIfNotZero (condition, target) ->
+      [Asm.Cmp (Asm.Imm 0, convert_val condition); Asm.JmpCC (Asm.NE, target)]
 
-  | Unary (op, operand) ->
-      let operand, state = replace_operand operand state in
-      (Unary (op, operand), state)
+  | Tacky.Label label -> [Asm.Label label]
 
-  | Binary (op, src, dst) ->
-      let src, state = replace_operand src state in
-      let dst, state = replace_operand dst state in
-      (Binary (op, src, dst), state)
+  | Tacky.FunCall (fun_name, args, dst) ->
+      let register_args = take 6 args in
+      let stack_args = drop 6 args in
 
-  | Cmp (src, dst) ->
-      let src, state = replace_operand src state in
-      let dst, state = replace_operand dst state in
-      (Cmp (src, dst), state)
+      let register_moves =
+        List.combine register_args (take (List.length register_args) arg_registers)
+        |> List.map (fun (arg, reg) ->
+             Asm.Mov (convert_val arg, Asm.Reg reg))
+      in
 
-  | Idiv operand ->
-      let operand, state = replace_operand operand state in
-      (Idiv operand, state)
+      let stack_pushes =
+        stack_args
+        |> List.rev
+        |> List.map (fun arg -> Asm.Push (convert_val arg))
+      in
 
-  | SetCC (cond, operand) ->
-      let operand, state = replace_operand operand state in
-      (SetCC (cond, operand), state)
+      let needs_padding = List.length stack_args mod 2 <> 0 in
+      let stack_padding =
+        if needs_padding then [Asm.AllocateStack 8] else []
+      in
 
-  | Cdq
-  | Jmp _
-  | JmpCC _
-  | Label _
-  | Ret
-  | AllocateStack _ ->
-      (instruction, state)
+      let bytes_to_remove =
+        (List.length stack_args * 8) + (if needs_padding then 8 else 0)
+      in
+      let cleanup =
+        if bytes_to_remove = 0 then [] else [Asm.DeallocateStack bytes_to_remove]
+      in
+
+      stack_padding
+      @ stack_pushes
+      @ register_moves
+      @ [Asm.Call fun_name]
+      @ cleanup
+      @ [Asm.Mov (Asm.Reg Asm.AX, convert_val dst)]
 
 let replace_pseudos instructions =
-  let initial_state = (StringMap.empty, 0) in
-  let instructions, (_, final_offset) =
-    List.fold_left
-      (fun (acc, state) instr ->
-        let instr, state = replace_instruction instr state in
-        (acc @ [instr], state))
-      ([], initial_state)
-      instructions
+  let stack_offset = ref 0 in
+  let table = ref StringMap.empty in
+
+  let replace_operand = function
+    | Asm.Pseudo name ->
+        if StringMap.mem name !table then
+          Asm.Stack (StringMap.find name !table)
+        else (
+          stack_offset := !stack_offset - 4;
+          table := StringMap.add name !stack_offset !table;
+          Asm.Stack !stack_offset
+        )
+    | other -> other
   in
-  (instructions, -final_offset)
+
+  let replace_instruction = function
+    | Asm.Mov (src, dst) -> Asm.Mov (replace_operand src, replace_operand dst)
+    | Asm.Unary (op, operand) -> Asm.Unary (op, replace_operand operand)
+    | Asm.Binary (op, src, dst) -> Asm.Binary (op, replace_operand src, replace_operand dst)
+    | Asm.Cmp (src, dst) -> Asm.Cmp (replace_operand src, replace_operand dst)
+    | Asm.Idiv operand -> Asm.Idiv (replace_operand operand)
+    | Asm.SetCC (cc, operand) -> Asm.SetCC (cc, replace_operand operand)
+    | Asm.Push operand -> Asm.Push (replace_operand operand)
+    | other -> other
+  in
+
+  let instructions = List.map replace_instruction instructions in
+  (instructions, -(!stack_offset))
 
 let fix_instruction = function
-  | Mov (Stack src, Stack dst) ->
-      [
-        Mov (Stack src, Reg R10);
-        Mov (Reg R10, Stack dst);
-      ]
+  | Asm.Mov (Asm.Stack src, Asm.Stack dst) ->
+      [Asm.Mov (Asm.Stack src, Asm.Reg Asm.R10);
+       Asm.Mov (Asm.Reg Asm.R10, Asm.Stack dst)]
 
-  | Binary (op, Stack src, Stack dst) ->
-      [
-        Mov (Stack src, Reg R10);
-        Binary (op, Reg R10, Stack dst);
-      ]
+  | Asm.Binary (op, src, Asm.Stack dst) when op = Asm.Mult ->
+      [Asm.Mov (Asm.Stack dst, Asm.Reg Asm.R11);
+       Asm.Binary (op, src, Asm.Reg Asm.R11);
+       Asm.Mov (Asm.Reg Asm.R11, Asm.Stack dst)]
 
-  | Idiv (Imm n) ->
-      [
-        Mov (Imm n, Reg R10);
-        Idiv (Reg R10);
-      ]
+  | Asm.Binary (op, Asm.Stack src, Asm.Stack dst) ->
+      [Asm.Mov (Asm.Stack src, Asm.Reg Asm.R10);
+       Asm.Binary (op, Asm.Reg Asm.R10, Asm.Stack dst)]
 
-  | Cmp (Stack src, Stack dst) ->
-      [
-        Mov (Stack src, Reg R10);
-        Cmp (Reg R10, Stack dst);
-      ]
+  | Asm.Cmp (Asm.Stack src, Asm.Stack dst) ->
+      [Asm.Mov (Asm.Stack src, Asm.Reg Asm.R10);
+       Asm.Cmp (Asm.Reg Asm.R10, Asm.Stack dst)]
 
-  | Cmp (src, Imm n) ->
-      [
-        Mov (Imm n, Reg R11);
-        Cmp (src, Reg R11);
-      ]
+  | Asm.Cmp (src, Asm.Imm n) ->
+      [Asm.Mov (Asm.Imm n, Asm.Reg Asm.R11);
+       Asm.Cmp (src, Asm.Reg Asm.R11)]
 
-  | instr ->
-      [instr]
+  | Asm.Idiv (Asm.Imm n) ->
+      [Asm.Mov (Asm.Imm n, Asm.Reg Asm.R10);
+       Asm.Idiv (Asm.Reg Asm.R10)]
+
+  | other -> [other]
 
 let fix_instructions instructions =
-  instructions
-  |> List.map fix_instruction
-  |> List.flatten
+  List.flatten (List.map fix_instruction instructions)
 
 let gen_function = function
-  | Tacky.Function (name, instructions) ->
-      let asm_instructions =
-        instructions
-        |> List.map gen_instruction
-        |> List.flatten
+  | Tacky.Function (name, params, instructions) ->
+      let param_moves =
+        params
+        |> List.mapi (fun i param ->
+             if i < 6 then
+               Asm.Mov (Asm.Reg (List.nth arg_registers i), Asm.Pseudo param)
+             else
+               let stack_offset = 16 + ((i - 6) * 8) in
+               Asm.Mov (Asm.Stack stack_offset, Asm.Pseudo param))
       in
-      let asm_instructions, stack_bytes = replace_pseudos asm_instructions in
-      let asm_instructions = fix_instructions asm_instructions in
-      Asm.Function (name, AllocateStack stack_bytes :: asm_instructions)
+
+      let instructions =
+        param_moves @ List.flatten (List.map gen_instruction instructions)
+      in
+
+      let instructions, stack_bytes = replace_pseudos instructions in
+      let stack_bytes =
+        if stack_bytes mod 16 = 0 then stack_bytes
+        else stack_bytes + (16 - (stack_bytes mod 16))
+      in
+
+      let instructions =
+        Asm.AllocateStack stack_bytes :: fix_instructions instructions
+      in
+
+      Asm.Function (name, instructions)
 
 let gen_program = function
-  | Tacky.Program func ->
-      Asm.Program (gen_function func)
+  | Tacky.Program functions ->
+      Asm.Program (List.map gen_function functions)

@@ -41,6 +41,7 @@ type token =
   | LBrace
   | RBrace
   | Semicolon
+  | Comma
 
 exception LexError of string
 
@@ -90,6 +91,8 @@ let lex input =
       | ';' -> lex_at (i + 1) (Semicolon :: acc)
       | '?' -> lex_at (i + 1) (Question :: acc)
       | ':' -> lex_at (i + 1) (Colon :: acc)
+      | ',' -> lex_at (i + 1) (Comma :: acc)
+      
 
       | '~' ->
           lex_at (i + 1) (Tilde :: acc)
